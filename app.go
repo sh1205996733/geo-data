@@ -4,9 +4,10 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +17,7 @@ var jpRaw string
 //go:embed data/cn.csv
 var cnRaw string
 
-var geoData = map[string]map[int]GeoData{
+var geoData = map[string]map[string]GeoData{
 	"jp": makeGeoData(jpRaw),
 	"cn": makeGeoData(cnRaw),
 }
@@ -27,37 +28,37 @@ var postData = map[string]map[string][]GeoData{
 }
 
 type GeoData struct {
-	Id       int       `json:"id"`                 // 地区id
 	Level    int       `json:"level"`              // 地区级别
-	Parent   int       `json:"parent"`             // 上级地区id
-	Post     string    `json:"post"`               // 邮政编码
+	Id       string    `json:"id"`                 // 地区id
+	Parent   string    `json:"parent"`             // 上级地区id
+	PostCode string    `json:"postcode"`           // 邮政编码
 	Name     string    `json:"name"`               // 地区名称
 	Address  string    `json:"address"`            // 地区全称
 	Spell    string    `json:"spell"`              // 地区拼音或读音
 	Children []GeoData `json:"children,omitempty"` // 子级地区
 }
 
-func makePostData(data map[int]GeoData) map[string][]GeoData {
+func makePostData(data map[string]GeoData) map[string][]GeoData {
 	postDataMap := make(map[string][]GeoData)
 
 	for _, data := range data {
-		if data.Post != "" {
-			postDataMap[data.Post] = append(postDataMap[data.Post], data)
+		if data.PostCode != "" {
+			postDataMap[data.PostCode] = append(postDataMap[data.PostCode], data)
 		}
 	}
 
 	return postDataMap
 }
 
-func makeGeoData(rawData string) map[int]GeoData {
+func makeGeoData(rawData string) map[string]GeoData {
 	lines := strings.Split(strings.TrimSpace(rawData), "\n")
 
-	geoDataMapId := make(map[int]GeoData)
+	geoDataMapId := make(map[string]GeoData)
 
 	for _, line := range lines {
 		fields := strings.Split(line, ",")
-		id, _ := strconv.Atoi(strings.TrimSpace(fields[0]))
-		parent, _ := strconv.Atoi(strings.TrimSpace(fields[1]))
+		id := strings.TrimSpace(fields[0])
+		parent := strings.TrimSpace(fields[1])
 		name := strings.TrimSpace(fields[2])
 		spell := strings.TrimSpace(fields[3])
 		address := strings.TrimSpace(fields[4])
@@ -80,7 +81,7 @@ func makeGeoData(rawData string) map[int]GeoData {
 			Id:       id,
 			Level:    level,
 			Parent:   parent,
-			Post:     post,
+			PostCode: post,
 			Address:  address,
 			Name:     name,
 			Spell:    spell,
@@ -105,20 +106,7 @@ func makeGeoData(rawData string) map[int]GeoData {
 
 func ginGetGeoData(c *gin.Context) {
 	country := c.Param("country")
-	idStr := c.Param("id")
-
-	var id int
-	if idStr != "" {
-		var err error
-		id, err = strconv.Atoi(idStr)
-		if err != nil {
-			c.JSON(400, gin.H{"error": "invalid id"})
-			return
-		}
-	} else {
-		// 默认使用 0（根节点），以兼容之前的行为
-		id = 0
-	}
+	id := c.Param("id")
 
 	// 检查国家是否存在
 	countryMap, countryExists := geoData[country]
@@ -136,8 +124,8 @@ func ginGetGeoData(c *gin.Context) {
 }
 
 func ginSearchByPost(c *gin.Context) {
-	country := c.Query("country")
-	postcode := c.Query("postcode")
+	country := c.Param("country")
+	postcode := c.Param("postcode")
 
 	// 检查国家是否存在
 	countryMap, countryExists := postData[country]
@@ -158,6 +146,12 @@ func ginSearchByPost(c *gin.Context) {
 
 func main() {
 	r := gin.Default()
+
+	// 添加 gzip 压缩中间件
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
+
+	// 添加跨域中间件
+	r.Use(cors.Default())
 
 	// 路由：支持 /:country 和 /:country/:id
 	r.GET("/:country", ginGetGeoData)

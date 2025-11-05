@@ -29,6 +29,6 @@ res = x.map(a => {
   }
 })
 
-const csv = res.map(a => `${a.id},${a.parent},${a.name},${a.pinyin},${a.address || ''},`).join('\n')
+const csv = res.map(a => `${a.id},${a.parent || ''},${a.name},${a.pinyin},${a.address || ''},`).join('\n')
 
 require(`fs`).writeFileSync(`../data/cn.csv`, csv)

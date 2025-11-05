@@ -20,21 +20,21 @@
 
 ```bash
 # 获取日本根节点
-curl http://localhost:8080/jp
+curl http(s)://geo-data.easit.cc/jp
 
 # 获取中国 id=110000
-curl http://localhost:8080/cn/110000
+curl http(s)://geo-data.easit.cc/cn/110000
 
 # 按邮编查询
-curl http://localhost:8080/search_postcode/jp/1000001
+curl http(s)://geo-data.easit.cc/search_postcode/jp/1000001
 ```
 
 ## 数据格式说明（CSV）
 
 当前代码期望数据为逗号分隔的 CSV，字段顺序如下：
 
-1. id (整数)
-2. parent (整数，父节点 id，根节点可为 0)
+1. id (字符串，唯一标识)
+2. parent (字符串，父节点 id，根节点可为空)
 3. name (名称)
 4. spell (拼音或读音)
 5. address (完整地址)
