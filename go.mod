@@ -1,8 +1,6 @@
-module jp-post
+module github.com/pch18/geo-data
 
-go 1.23.0
-
-toolchain go1.23.1
+go 1.23.1
 
 require github.com/gin-gonic/gin v1.11.0
 
