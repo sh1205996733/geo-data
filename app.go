@@ -25,7 +25,7 @@ var geoData = map[string]map[string]GeoData{
 	"cn": makeGeoData(cnRaw),
 }
 
-var postData = map[string]map[string][]GeoData{
+var postData = map[string]map[string][]PostData{
 	"jp": makePostData(geoData["jp"]),
 	"cn": makePostData(geoData["cn"]),
 }
@@ -41,16 +41,59 @@ type GeoData struct {
 	Children []GeoData `json:"children,omitempty"` // 子级地区
 }
 
-func makePostData(data map[string]GeoData) map[string][]GeoData {
-	postDataMap := make(map[string][]GeoData)
+type PostData struct {
+	GeoData
+	Parents []GeoData `json:"parents,omitempty"` // 祖先地区
+}
 
-	for _, data := range data {
-		if data.PostCode != "" {
-			postDataMap[data.PostCode] = append(postDataMap[data.PostCode], data)
+func makePostData(data map[string]GeoData) map[string][]PostData {
+	postDataMap := make(map[string][]PostData)
+	parentCache := make(map[string][]GeoData) // 缓存祖先链
+
+	for _, d := range data {
+		if d.PostCode == "" {
+			continue
 		}
+
+		pd := PostData{GeoData: d}
+		if parents, found := parentCache[d.Id]; found {
+			pd.Parents = parents
+		} else {
+			pd.Parents = buildParentChain(d.Parent, data, parentCache)
+			parentCache[d.Id] = pd.Parents
+		}
+
+		postDataMap[d.PostCode] = append(postDataMap[d.PostCode], pd)
 	}
 
 	return postDataMap
+}
+
+func buildParentChain(parentId string, data map[string]GeoData, cache map[string][]GeoData) (parents []GeoData) {
+	visited := make(map[string]bool) // 防止循环引用
+
+	for parentId != "" {
+		if visited[parentId] {
+			break
+		}
+		visited[parentId] = true
+
+		parentData, parentExists := data[parentId]
+		if !parentExists {
+			break
+		}
+
+		if cachedParents, found := cache[parentId]; found {
+			parents = append(parents, cachedParents...)
+			break
+		}
+
+		parentData.Children = nil
+		parents = append(parents, parentData)
+		parentId = parentData.Parent
+	}
+
+	return
 }
 
 func makeGeoData(rawData string) map[string]GeoData {
