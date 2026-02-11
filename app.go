@@ -34,6 +34,7 @@ var postData = map[string]map[string][]GeoData{
 type GeoData struct {
 	Level    int       `json:"level"`              // 地区级别
 	Id       string    `json:"id"`                 // 地区id
+	parentId string    `json:"omitempty"`          // 父地区id
 	Parents  []GeoData `json:"parents,omitempty"`  // 祖先地区
 	PostCode string    `json:"postcode"`           // 邮政编码
 	Name     string    `json:"name"`               // 地区名称
@@ -76,17 +77,9 @@ func makeGeoData(rawData string) map[string]GeoData {
 			children = oldData.Children
 		}
 
-		// parents信息可能不完整
-		var parents []GeoData
-		if parentId != "" {
-			parents = append(parentData.Parents, GeoData{
-				Id: parentData.Id,
-			})
-		}
-
 		cur := GeoData{
 			Id:       id,
-			Parents:  parents,
+			parentId: parentId,
 			PostCode: post,
 			Address:  address,
 			Name:     name,
@@ -112,14 +105,22 @@ func makeGeoData(rawData string) map[string]GeoData {
 	for k, data := range geoDataMapId {
 		// 维护当前数据的Parents以及Parent的Level
 		var parents []GeoData
-		for _, p := range data.Parents {
-			if parentData, ok := geoDataMapId[p.Id]; ok {
-				// parentData中Children数组的GeoData不再存Parents、Children
-				parentData.Level = len(parentData.Parents) + 1
-				parentData.Parents = nil
-				parentData.Children = nil
-				parents = append(parents, parentData)
+		for parentId := data.parentId; parentId != ""; {
+			parentData, ok := geoDataMapId[parentId]
+			if !ok {
+				break
 			}
+			// parentData中Children数组的GeoData不再存Parents、Children
+			parentData.Parents = nil
+			parentData.Children = nil
+			parents = append(parents, parentData)
+
+			parentId = parentData.parentId
+		}
+
+		count := len(parents)
+		for i := range parents {
+			parents[i].Level = count - i
 		}
 
 		// 保证parents按照Level 升序
@@ -130,7 +131,7 @@ func makeGeoData(rawData string) map[string]GeoData {
 		data.Parents = parents
 
 		// 维护当前数据的Level
-		data.Level = len(parents) + 1
+		data.Level = count + 1
 
 		// 维护当前数据Children的Level
 		for i := range data.Children {
